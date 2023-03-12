@@ -205,7 +205,7 @@ abstract contract BaseStrategy {
      * @return A string which holds the current API version of this contract.
      */
     function apiVersion() public pure returns (string memory) {
-        return "0.4.6";
+        return "0.4.7";
     }
 
     /**
@@ -730,7 +730,7 @@ abstract contract BaseStrategy {
      *  This call and `tendTrigger` should never return `true` at the
      *  same time.
      *
-     *  See `maxReportDelay`, `creditThreshold` to adjust the
+     *  See `maxReportDelay`, `minReportDelay`, `creditThreshold` to adjust the
      *  strategist-controlled parameters that will influence whether this call
      *  returns `true` or not. These parameters will be used in conjunction
      *  with the parameters reported to the Vault (see `params`) to determine
@@ -740,7 +740,7 @@ abstract contract BaseStrategy {
      *  times of high network congestion.
      *
      *  Consider use of super.harvestTrigger() in any override to build on top
-     *  of this logic instead of replacing it. For example, if using `minReportDelay`.
+     *  of this logic instead of replacing it.
      *
      *  It is expected that an external system will check `harvestTrigger()`.
      *  This could be a script run off a desktop or cloud bot (e.g.
@@ -754,6 +754,10 @@ abstract contract BaseStrategy {
         // Should not trigger if strategy is not active (no assets or no debtRatio)
         if (!isActive()) return false;
 
+        // Shouldn't trigger if we haven't reached our minDelay
+        StrategyParams memory params = vault.strategies(address(this));
+        if ((block.timestamp - params.lastReport) < minReportDelay) return false;
+
         // check if the base fee gas price is higher than we allow. if it is, block harvests.
         if (!isBaseFeeAcceptable()) return false;
 
@@ -761,7 +765,6 @@ abstract contract BaseStrategy {
         if (forceHarvestTriggerOnce) return true;
 
         // Should trigger if hasn't been called in a while
-        StrategyParams memory params = vault.strategies(address(this));
         if ((block.timestamp - params.lastReport) >= maxReportDelay) return true;
 
         // harvest our credit if it's above our threshold or return false
